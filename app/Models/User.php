@@ -64,4 +64,40 @@ class User extends Authenticatable
     {
         return $this->role === 'kepala_kantor';
     }
+
+    // Relationships
+    public function pengaduanSebagaiWarga()
+    {
+        return $this->hasMany(Pengaduan::class, 'warga_id');
+    }
+
+    public function pengaduanSebagaiPegawai() 
+    {
+        return $this->hasMany(Pengaduan::class, 'pegawai_id');
+    }
+
+    public function pengaduanSebagaiKepala()
+    {
+        return $this->hasMany(Pengaduan::class, 'kepala_kantor_id');
+    }
+
+    public function statusPengaduanHistory()
+    {
+        return $this->hasMany(StatusPengaduan::class, 'created_by');
+    }
+
+    public function notifikasis()
+    {
+        return $this->hasMany(Notifikasi::class, 'pengguna_id');
+    }
+
+    public function laporans()
+    {
+        return $this->hasMany(Laporan::class, 'dibuat_oleh');
+    }
+
+    public function notifikasiBelumDibaca()
+    {
+        return $this->hasMany(Notifikasi::class, 'pengguna_id')->belumDibaca();
+    }
 }
