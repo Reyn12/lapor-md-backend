@@ -2,116 +2,64 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Notifikasi extends Model
 {
-    use HasFactory;
+    protected $table = 'notifikasis';
 
-    // Disable updated_at since we only need created_at for notifications
-    public $timestamps = false;
-    protected $dates = ['created_at'];
+    // Disable updated_at karena tabel cuma punya created_at
+    const UPDATED_AT = null;
 
     protected $fillable = [
         'pengguna_id',
         'pengaduan_id',
         'judul',
         'pesan',
-        'dibaca'
+        'dibaca',
     ];
 
-    protected $casts = [
-        'dibaca' => 'boolean',
-        'created_at' => 'datetime'
-    ];
+    protected function casts(): array
+    {
+        return [
+            'dibaca' => 'boolean',
+        ];
+    }
 
-    // Relationships
-    public function pengguna()
+    // Relasi ke User
+    public function pengguna(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pengguna_id');
     }
 
-    public function pengaduan()
+    // Relasi ke Pengaduan
+    public function pengaduan(): BelongsTo
     {
-        return $this->belongsTo(Pengaduan::class, 'pengaduan_id');
+        return $this->belongsTo(Pengaduan::class);
     }
 
-    // Scope methods
-    public function scopeBelumDibaca($query)
+    // Helper method untuk format waktu relatif
+    public function getWaktuRelatifAttribute()
     {
-        return $query->where('dibaca', false);
+        return $this->created_at->diffForHumans();
     }
 
-    public function scopeSudahDibaca($query)
-    {
-        return $query->where('dibaca', true);
-    }
-
+    // Scope untuk filter berdasarkan pengguna
     public function scopeByPengguna($query, $penggunaId)
     {
         return $query->where('pengguna_id', $penggunaId);
     }
 
-    public function scopeLatest($query)
+    // Scope untuk notifikasi yang belum dibaca
+    public function scopeUnread($query)
     {
-        return $query->orderBy('created_at', 'desc');
+        return $query->where('dibaca', false);
     }
 
-    // Helper methods
+    // Method untuk mark as read
     public function markAsRead()
     {
         $this->update(['dibaca' => true]);
-    }
-
-    public function markAsUnread()
-    {
-        $this->update(['dibaca' => false]);
-    }
-
-    public function isBelumDibaca()
-    {
-        return !$this->dibaca;
-    }
-
-    public function isSudahDibaca()
-    {
-        return $this->dibaca;
-    }
-
-    // Static methods for creating notifications
-    public static function createNotifikasi($penggunaId, $pengaduanId, $judul, $pesan)
-    {
-        return self::create([
-            'pengguna_id' => $penggunaId,
-            'pengaduan_id' => $pengaduanId,
-            'judul' => $judul,
-            'pesan' => $pesan,
-            'dibaca' => false
-        ]);
-    }
-
-    public static function notifikasiStatusUpdate($pengaduanId, $statusBaru)
-    {
-        $pengaduan = Pengaduan::find($pengaduanId);
-        if (!$pengaduan) return;
-
-        // Notifikasi ke warga
-        self::createNotifikasi(
-            $pengaduan->warga_id,
-            $pengaduanId,
-            'Status Pengaduan Diperbarui',
-            "Pengaduan '{$pengaduan->judul}' status berubah menjadi: {$statusBaru}"
-        );
-
-        // Notifikasi ke pegawai jika ada
-        if ($pengaduan->pegawai_id) {
-            self::createNotifikasi(
-                $pengaduan->pegawai_id,
-                $pengaduanId,
-                'Update Status Pengaduan',
-                "Status pengaduan '{$pengaduan->judul}' telah diperbarui menjadi: {$statusBaru}"
-            );
-        }
     }
 }

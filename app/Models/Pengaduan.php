@@ -2,17 +2,18 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Pengaduan extends Model
 {
-    use HasFactory;
+    protected $table = 'pengaduans';
 
     protected $fillable = [
         'nomor_pengaduan',
         'warga_id',
-        'pegawai_id', 
+        'pegawai_id',
         'kepala_kantor_id',
         'kategori_id',
         'judul',
@@ -24,96 +25,84 @@ class Pengaduan extends Model
         'tanggal_proses',
         'tanggal_selesai',
         'catatan_pegawai',
-        'catatan_kepala_kantor'
+        'catatan_kepala_kantor',
     ];
 
-    protected $casts = [
-        'tanggal_pengaduan' => 'datetime',
-        'tanggal_proses' => 'datetime', 
-        'tanggal_selesai' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'tanggal_pengaduan' => 'datetime',
+            'tanggal_proses' => 'datetime',
+            'tanggal_selesai' => 'datetime',
+        ];
+    }
 
-    // Relationships
-    public function warga()
+    // Relasi ke User (Warga)
+    public function warga(): BelongsTo
     {
         return $this->belongsTo(User::class, 'warga_id');
     }
 
-    public function pegawai()
+    // Relasi ke User (Pegawai)
+    public function pegawai(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pegawai_id');
     }
 
-    public function kepalaKantor()
+    // Relasi ke User (Kepala Kantor)
+    public function kepalaKantor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'kepala_kantor_id');
     }
 
-    public function kategori()
+    // Relasi ke Kategori
+    public function kategori(): BelongsTo
     {
         return $this->belongsTo(Kategori::class);
     }
 
-    public function statusHistories()
+    // Relasi ke StatusPengaduan
+    public function statusHistory(): HasMany
     {
-        return $this->hasMany(StatusPengaduan::class)->latest();
+        return $this->hasMany(StatusPengaduan::class);
     }
 
-    public function latestStatus()
+    // Relasi ke Notifikasi
+    public function notifikasi(): HasMany
     {
-        return $this->hasOne(StatusPengaduan::class)->latestOfMany();
+        return $this->hasMany(Notifikasi::class);
     }
 
-    public function notifikasis()
+    // Helper method untuk format waktu relatif
+    public function getWaktuRelatifAttribute()
     {
-        return $this->hasMany(Notifikasi::class, 'pengaduan_id');
+        return $this->created_at->diffForHumans();
     }
 
-    // Status helpers
-    public function isMenunggu()
+    // Helper method untuk status badge color
+    public function getStatusColorAttribute()
     {
-        return $this->status === 'menunggu';
+        return match($this->status) {
+            'menunggu' => 'warning',
+            'diproses' => 'info',
+            'perlu_approval' => 'secondary',
+            'disetujui' => 'primary',
+            'ditolak' => 'danger',
+            'selesai' => 'success',
+            default => 'secondary'
+        };
     }
 
-    public function isDiproses()
-    {
-        return $this->status === 'diproses';
-    }
-
-    public function isPerluApproval()
-    {
-        return $this->status === 'perlu_approval';
-    }
-
-    public function isDisetujui()
-    {
-        return $this->status === 'disetujui';
-    }
-
-    public function isDitolak()
-    {
-        return $this->status === 'ditolak';
-    }
-
-    public function isSelesai()
-    {
-        return $this->status === 'selesai';
-    }
-
-    // Scope methods
-    public function scopeByStatus($query, $status)
-    {
-        return $query->where('status', $status);
-    }
-
+    // Scope untuk filter berdasarkan warga
     public function scopeByWarga($query, $wargaId)
     {
         return $query->where('warga_id', $wargaId);
     }
 
-    public function scopeByPegawai($query, $pegawaiId)
+    // Scope untuk filter berdasarkan status
+    public function scopeByStatus($query, $status)
     {
-        return $query->where('pegawai_id', $pegawaiId);
+        return $query->where('status', $status);
     }
 
     // Auto generate nomor pengaduan
@@ -123,12 +112,9 @@ class Pengaduan extends Model
 
         static::creating(function ($pengaduan) {
             if (empty($pengaduan->nomor_pengaduan)) {
-                $pengaduan->nomor_pengaduan = 'ADU-' . date('Ymd') . '-' . str_pad(
-                    static::whereDate('created_at', today())->count() + 1, 
-                    4, 
-                    '0', 
-                    STR_PAD_LEFT
-                );
+                $today = now()->format('Ymd');
+                $count = static::whereDate('created_at', today())->count() + 1;
+                $pengaduan->nomor_pengaduan = 'ADU-' . $today . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
             }
         });
     }

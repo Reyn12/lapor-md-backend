@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\WargaController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -32,11 +33,10 @@ Route::middleware(['auth.token'])->group(function () {
     });
 
     // WARGA ROUTES
-    Route::prefix('warga')->middleware(['role:warga'])->group(function () {
-        // Dashboard warga, buat pengaduan, dll
-        // Route::get('dashboard', [WargaController::class, 'dashboard']);
-        // Route::post('pengaduan', [WargaController::class, 'buatPengaduan']);
-    });
+Route::prefix('warga')->middleware(['role:warga'])->group(function () {
+    Route::get('home', [WargaController::class, 'home']);
+    // Route::post('pengaduan', [WargaController::class, 'buatPengaduan']);
+});
 
     // PEGAWAI ROUTES
     Route::prefix('pegawai')->middleware(['role:pegawai'])->group(function () {
