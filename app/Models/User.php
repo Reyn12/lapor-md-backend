@@ -24,6 +24,10 @@ class User extends Authenticatable
         'alamat',
         'role',
         'foto_profil',
+        'access_token',
+        'refresh_token',
+        'access_expires_at',
+        'refresh_expires_at',
     ];
 
     /**
@@ -34,6 +38,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'access_token',
+        'refresh_token',
     ];
 
     /**
@@ -46,7 +52,30 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'access_expires_at' => 'datetime',
+            'refresh_expires_at' => 'datetime',
         ];
+    }
+
+    // Token helpers
+    public function isAccessTokenValid()
+    {
+        return $this->access_token && $this->access_expires_at && $this->access_expires_at->isFuture();
+    }
+
+    public function isRefreshTokenValid()
+    {
+        return $this->refresh_token && $this->refresh_expires_at && $this->refresh_expires_at->isFuture();
+    }
+
+    public function revokeTokens()
+    {
+        $this->update([
+            'access_token' => null,
+            'refresh_token' => null,
+            'access_expires_at' => null,
+            'refresh_expires_at' => null,
+        ]);
     }
 
     // Role helpers

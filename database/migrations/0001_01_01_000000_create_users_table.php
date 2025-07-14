@@ -21,6 +21,11 @@ return new class extends Migration
             $table->text('alamat')->nullable();  // Tambahan
             $table->enum('role', ['warga', 'pegawai', 'kepala_kantor'])->default('warga');  // Tambahan
             $table->string('foto_profil', 255)->nullable();  // Tambahan
+            // Token authentication fields
+            $table->string('access_token', 255)->nullable();
+            $table->string('refresh_token', 255)->nullable();
+            $table->timestamp('access_expires_at')->nullable();
+            $table->timestamp('refresh_expires_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
