@@ -3,14 +3,13 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -18,9 +17,13 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'nama',  // Ganti dari 'name'
         'email',
         'password',
+        'no_telepon',
+        'alamat',
+        'role',
+        'foto_profil',
     ];
 
     /**
@@ -44,5 +47,21 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // Role helpers
+    public function isWarga()
+    {
+        return $this->role === 'warga';
+    }
+
+    public function isPegawai()
+    {
+        return $this->role === 'pegawai';
+    }
+
+    public function isKepalaKantor()
+    {
+        return $this->role === 'kepala_kantor';
     }
 }
