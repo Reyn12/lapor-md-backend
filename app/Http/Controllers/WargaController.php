@@ -38,6 +38,7 @@ class WargaController extends Controller
                         'judul' => $pengaduan->judul,
                         'status' => $pengaduan->status,
                         'kategori' => $pengaduan->kategori ? $pengaduan->kategori->nama_kategori : null,
+                        'foto_pengaduan' => $pengaduan->foto_pengaduan,
                         'created_at' => $pengaduan->created_at->toISOString(),
                         'waktu_relatif' => $pengaduan->waktu_relatif
                     ];

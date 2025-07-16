@@ -6,13 +6,20 @@ use App\Models\Pengaduan;
 use App\Models\StatusPengaduan;
 use App\Models\Notifikasi;
 use App\Models\User;
+use App\Services\ImageKitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class PengaduanController extends Controller
 {
+    protected $imageKitService;
+
+    public function __construct(ImageKitService $imageKitService)
+    {
+        $this->imageKitService = $imageKitService;
+    }
+
     public function store(Request $request)
     {
         try {
@@ -40,11 +47,17 @@ class PengaduanController extends Controller
             $user = $request->user();
 
             // Handle upload foto jika ada
-            $fotoPath = null;
+            $fotoUrl = null;
             if ($request->hasFile('foto_pengaduan')) {
                 $file = $request->file('foto_pengaduan');
-                $fileName = time() . '_' . $file->getClientOriginalName();
-                $fotoPath = $file->storeAs('pengaduan', $fileName, 'public');
+                $fotoUrl = $this->imageKitService->uploadImage($file, 'Lapor-MD/pengaduan');
+                
+                if (!$fotoUrl) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal mengupload foto'
+                    ], 500);
+                }
             }
 
             DB::beginTransaction();
@@ -56,7 +69,7 @@ class PengaduanController extends Controller
                 'judul' => $validated['judul'],
                 'deskripsi' => $validated['deskripsi'],
                 'lokasi' => $validated['lokasi'],
-                'foto_pengaduan' => $fotoPath,
+                'foto_pengaduan' => $fotoUrl,
                 'status' => 'menunggu',
                 'tanggal_pengaduan' => now(),
             ]);
@@ -94,6 +107,7 @@ class PengaduanController extends Controller
                         'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
                         'judul' => $pengaduan->judul,
                         'status' => $pengaduan->status,
+                        'foto_pengaduan' => $pengaduan->foto_pengaduan,
                         'tanggal_pengaduan' => $pengaduan->tanggal_pengaduan->format('Y-m-d H:i:s'),
                     ]
                 ]
@@ -109,11 +123,6 @@ class PengaduanController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            // Hapus file yang sudah terupload jika ada error
-            if ($fotoPath && Storage::disk('public')->exists($fotoPath)) {
-                Storage::disk('public')->delete($fotoPath);
-            }
-
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal membuat pengaduan: ' . $e->getMessage()

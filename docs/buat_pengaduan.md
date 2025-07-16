@@ -34,6 +34,7 @@ Accept: application/json
             "nomor_pengaduan": "PGD-20250716-0006",
             "judul": "Sampah Berserakan di Taman Kota",
             "status": "menunggu",
+            "foto_pengaduan": "https://ik.imagekit.io/your_imagekit_id/lapor_md/pengaduan/1721122084_64b5f8a1.jpg",
             "tanggal_pengaduan": "2025-07-16 10:48:04"
         }
     }
@@ -95,6 +96,13 @@ Accept: application/json
 ## Notes
 - Endpoint hanya bisa diakses role **warga**
 - Nomor pengaduan auto-generate format: `PGD-YYYYMMDD-XXXX`
-- File foto disimpan di `storage/app/public/pengaduan/`
+- File foto diupload ke **ImageKit.io** untuk performa dan CDN
+- Field `foto_pengaduan` berisi URL lengkap dari ImageKit (bukan path file)
 - Sistem akan auto insert ke 3 tabel: `pengaduans`, `status_pengaduans`, `notifikasis`
 - Notifikasi otomatis dikirim ke semua pegawai
+
+## Technical Implementation
+- Upload menggunakan **ImageKit PHP SDK**
+- File disimpan di folder `/lapor_md/pengaduan/` di ImageKit
+- Response `foto_pengaduan` berupa URL lengkap siap pakai
+- Jika upload gagal, endpoint return error 500
