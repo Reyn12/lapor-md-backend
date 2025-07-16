@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WargaController;
 use App\Http\Controllers\PengaduanController;
+use App\Http\Controllers\KategoriController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -58,4 +59,7 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
         // Routes yang bisa diakses multiple role
         // Contoh: notifikasi, profile update, dll
     });
+
+    // KATEGORI ROUTES (Accessible by all authenticated users)
+    Route::get('kategori', [KategoriController::class, 'index']);
 }); 
