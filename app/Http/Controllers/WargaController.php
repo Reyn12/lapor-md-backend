@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Pengaduan;
 use App\Models\Notifikasi;
+use App\Models\StatusPengaduan;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -179,10 +180,111 @@ class WargaController extends Controller
                 'data' => $responseData
             ], 200);
 
-        } catch (\Exception $e) {
+                 } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengambil riwayat pengaduan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Detail pengaduan untuk warga
+     */
+    public function detailPengaduan(Request $request, $id): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware
+            
+            // Ambil pengaduan dengan validasi ownership
+            $pengaduan = Pengaduan::with(['kategori', 'warga', 'pegawai', 'kepalaKantor'])
+                ->where('id', $id)
+                ->where('warga_id', $user->id) // Pastikan pengaduan milik warga ini
+                ->first();
+
+            if (!$pengaduan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengaduan tidak ditemukan atau bukan milik anda'
+                ], 404);
+            }
+
+            // Ambil timeline status dari StatusPengaduan
+            $timeline = StatusPengaduan::with('createdBy')
+                ->byPengaduan($id)
+                ->orderBy('created_at', 'asc')
+                ->get()
+                ->map(function ($status) {
+                    return [
+                        'status' => $status->status,
+                        'keterangan' => $status->keterangan,
+                        'tanggal' => $status->created_at ? $status->created_at->toISOString() : null,
+                        'dibuat_oleh' => $status->createdBy ? $status->createdBy->nama : 'System'
+                    ];
+                });
+
+            // Format foto pengaduan sebagai array (asumsi JSON string atau single URL)
+            $fotoPengaduan = [];
+            if ($pengaduan->foto_pengaduan) {
+                // Coba parse sebagai JSON array, kalau gagal jadikan array single
+                $decoded = json_decode($pengaduan->foto_pengaduan, true);
+                if (is_array($decoded)) {
+                    $fotoPengaduan = $decoded;
+                } else {
+                    $fotoPengaduan = [$pengaduan->foto_pengaduan];
+                }
+            }
+
+            // Format response
+            $response = [
+                'id' => $pengaduan->id,
+                'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
+                'judul' => $pengaduan->judul,
+                'deskripsi' => $pengaduan->deskripsi,
+                'status' => $pengaduan->status,
+                'lokasi' => $pengaduan->lokasi,
+                'foto_pengaduan' => $fotoPengaduan,
+                'kategori' => $pengaduan->kategori ? [
+                    'id' => $pengaduan->kategori->id,
+                    'nama_kategori' => $pengaduan->kategori->nama_kategori
+                ] : null,
+                'tanggal_pengaduan' => $pengaduan->tanggal_pengaduan ? $pengaduan->tanggal_pengaduan->toISOString() : null,
+                'tanggal_proses' => $pengaduan->tanggal_proses ? $pengaduan->tanggal_proses->toISOString() : null,
+                'tanggal_selesai' => $pengaduan->tanggal_selesai ? $pengaduan->tanggal_selesai->toISOString() : null,
+                'estimasi_selesai' => null, // Field ini belum ada di database, bisa ditambah nanti
+                'warga' => $pengaduan->warga ? [
+                    'id' => $pengaduan->warga->id,
+                    'nama' => $pengaduan->warga->nama
+                ] : null,
+                'pegawai' => $pengaduan->pegawai ? [
+                    'id' => $pengaduan->pegawai->id,
+                    'nama' => $pengaduan->pegawai->nama
+                ] : null,
+                'kepala_kantor' => $pengaduan->kepalaKantor ? [
+                    'id' => $pengaduan->kepalaKantor->id,
+                    'nama' => $pengaduan->kepalaKantor->nama
+                ] : null,
+                'catatan_pegawai' => $pengaduan->catatan_pegawai,
+                'catatan_kepala_kantor' => $pengaduan->catatan_kepala_kantor,
+                'timeline' => $timeline,
+                'foto_hasil' => [
+                    'sebelum' => [], // Field ini belum ada di database, bisa ditambah nanti
+                    'sesudah' => []  // Field ini belum ada di database, bisa ditambah nanti
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'pengaduan' => $response
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil detail pengaduan',
                 'error' => $e->getMessage()
             ], 500);
         }

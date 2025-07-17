@@ -38,6 +38,7 @@ Route::middleware(['auth.token'])->group(function () {
 Route::prefix('warga')->middleware(['role:warga'])->group(function () {
     Route::get('home', [WargaController::class, 'home']);
     Route::get('riwayat', [WargaController::class, 'riwayat']);
+    Route::get('pengaduan/{id}', [WargaController::class, 'detailPengaduan']);
     Route::post('pengaduan', [PengaduanController::class, 'store']);
 });
 
