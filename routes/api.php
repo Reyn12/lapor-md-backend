@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WargaController;
+use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\PengaduanController;
 use App\Http\Controllers\KategoriController;
 use Illuminate\Http\Request;
@@ -39,14 +40,18 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
     Route::get('home', [WargaController::class, 'home']);
     Route::get('riwayat', [WargaController::class, 'riwayat']);
     Route::get('pengaduan/{id}', [WargaController::class, 'detailPengaduan']);
+    Route::get('notifikasi', [WargaController::class, 'notifikasi']);
+    Route::get('profile', [WargaController::class, 'profile']);
+    Route::put('profile', [WargaController::class, 'updateProfile']);
     Route::post('pengaduan', [PengaduanController::class, 'store']);
 });
 
     // PEGAWAI ROUTES
     Route::prefix('pegawai')->middleware(['role:pegawai'])->group(function () {
-        // Dashboard pegawai, handle pengaduan, dll
-        // Route::get('dashboard', [PegawaiController::class, 'dashboard']);
-        // Route::get('pengaduan', [PegawaiController::class, 'lihatPengaduan']);
+        Route::get('home', [PegawaiController::class, 'home']);
+        Route::get('pengaduan', [PegawaiController::class, 'pengaduan']);
+        Route::post('pengaduan/{id}/terima', [PegawaiController::class, 'terimaPengaduan']);
+        Route::post('pengaduan/{id}/selesai', [PegawaiController::class, 'selesaikanPengaduan']);
     });
 
     // KEPALA KANTOR ROUTES

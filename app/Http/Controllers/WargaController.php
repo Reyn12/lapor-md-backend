@@ -289,4 +289,212 @@ class WargaController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Daftar notifikasi untuk warga
+     */
+    public function notifikasi(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware
+            
+            // Query parameters
+            $status = $request->query('status', 'semua'); // semua, belum_dibaca, sudah_dibaca
+            $page = (int) $request->query('page', 1);
+            $limit = (int) $request->query('limit', 10);
+            
+            // Mulai query notifikasi milik warga ini
+            $query = Notifikasi::byPengguna($user->id)
+                ->with(['pengaduan'])
+                ->orderBy('created_at', 'desc');
+            
+            // Filter berdasarkan status baca
+            if ($status !== 'semua') {
+                switch ($status) {
+                    case 'belum_dibaca':
+                        $query->unread();
+                        break;
+                    case 'sudah_dibaca':
+                        $query->where('dibaca', true);
+                        break;
+                }
+            }
+
+            // Count untuk pagination
+            $totalItems = $query->count();
+            $totalPages = ceil($totalItems / $limit);
+            
+            // Pagination
+            $notifikasiList = $query->skip(($page - 1) * $limit)
+                ->take($limit)
+                ->get()
+                ->map(function ($notifikasi) {
+                    return [
+                        'id' => $notifikasi->id,
+                        'judul' => $notifikasi->judul,
+                        'pesan' => $notifikasi->pesan,
+                        'is_read' => $notifikasi->dibaca,
+                        'pengaduan' => $notifikasi->pengaduan ? [
+                            'id' => $notifikasi->pengaduan->id,
+                            'nomor_pengaduan' => $notifikasi->pengaduan->nomor_pengaduan,
+                            'judul' => $notifikasi->pengaduan->judul,
+                            'status' => $notifikasi->pengaduan->status,
+                        ] : null,
+                        'created_at' => $notifikasi->created_at->toISOString(),
+                        'waktu_relatif' => $notifikasi->waktu_relatif
+                    ];
+                });
+
+            // Hitung statistik
+            $totalNotifikasi = Notifikasi::byPengguna($user->id)->count();
+            $belumDibaca = Notifikasi::byPengguna($user->id)->unread()->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'notifikasi' => $notifikasiList,
+                    'pagination' => [
+                        'current_page' => $page,
+                        'total_pages' => $totalPages,
+                        'total_items' => $totalItems,
+                        'per_page' => $limit
+                    ],
+                    'statistics' => [
+                        'total_notifikasi' => $totalNotifikasi,
+                        'belum_dibaca' => $belumDibaca
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil daftar notifikasi',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get profile warga
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'profile' => [
+                        'id' => $user->id,
+                        'nama' => $user->nama,
+                        'email' => $user->email,
+                        'email_verified_at' => $user->email_verified_at ? $user->email_verified_at->toISOString() : null,
+                        'is_verified' => $user->email_verified_at ? true : false,
+                        'nik' => $user->nik ?? null, // Field NIK belum ada di database
+                        'no_telepon' => $user->no_telepon,
+                        'alamat' => $user->alamat,
+                        'foto_profil' => $user->foto_profil,
+                        'role' => $user->role,
+                        'created_at' => $user->created_at->toISOString(),
+                        'updated_at' => $user->updated_at->toISOString()
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update profile warga
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware
+            
+            // Validasi input
+            $request->validate([
+                'nama' => 'sometimes|string|max:100',
+                'email' => 'sometimes|email|max:100|unique:users,email,' . $user->id,
+                'no_telepon' => 'sometimes|string|max:20',
+                'alamat' => 'sometimes|string',
+                'foto_profil' => 'sometimes|string|max:255', // URL foto
+            ]);
+
+            // Data yang akan diupdate
+            $updateData = [];
+            
+            if ($request->has('nama')) {
+                $updateData['nama'] = $request->nama;
+            }
+            
+            if ($request->has('email')) {
+                $updateData['email'] = $request->email;
+                // Reset email verification jika email berubah
+                if ($request->email !== $user->email) {
+                    $updateData['email_verified_at'] = null;
+                }
+            }
+            
+            if ($request->has('no_telepon')) {
+                $updateData['no_telepon'] = $request->no_telepon;
+            }
+            
+            if ($request->has('alamat')) {
+                $updateData['alamat'] = $request->alamat;
+            }
+            
+            if ($request->has('foto_profil')) {
+                $updateData['foto_profil'] = $request->foto_profil;
+            }
+
+            // Update user
+            $user->update($updateData);
+
+            // Refresh user data
+            $user->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile berhasil diupdate',
+                'data' => [
+                    'profile' => [
+                        'id' => $user->id,
+                        'nama' => $user->nama,
+                        'email' => $user->email,
+                        'email_verified_at' => $user->email_verified_at ? $user->email_verified_at->toISOString() : null,
+                        'is_verified' => $user->email_verified_at ? true : false,
+                        'nik' => null, // Field NIK belum ada di database
+                        'no_telepon' => $user->no_telepon,
+                        'alamat' => $user->alamat,
+                        'foto_profil' => $user->foto_profil,
+                        'role' => $user->role,
+                        'created_at' => $user->created_at->toISOString(),
+                        'updated_at' => $user->updated_at->toISOString()
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 } 
