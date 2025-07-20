@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('nama', 100);  // Ganti dari 'name' ke 'nama'
+            $table->string('nik', 16)->unique();  // NIK untuk semua user
+            $table->string('nip', 20)->nullable()->unique();  // NIP khusus pegawai/kepala kantor
             $table->string('email', 100)->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password', 255);

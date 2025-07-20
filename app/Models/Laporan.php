@@ -10,8 +10,8 @@ class Laporan extends Model
 {
     use HasFactory;
 
-    // Disable updated_at since we only need created_at for reports
-    public $timestamps = false;
+    // Only use created_at, not updated_at
+    const UPDATED_AT = null;
     protected $dates = ['created_at', 'tanggal_mulai', 'tanggal_selesai'];
 
     protected $fillable = [

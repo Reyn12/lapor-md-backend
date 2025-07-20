@@ -50,8 +50,12 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
     Route::prefix('pegawai')->middleware(['role:pegawai'])->group(function () {
         Route::get('home', [PegawaiController::class, 'home']);
         Route::get('pengaduan', [PegawaiController::class, 'pengaduan']);
+        Route::get('pengaduan/{id}', [PegawaiController::class, 'detailPengaduan']);
         Route::post('pengaduan/{id}/terima', [PegawaiController::class, 'terimaPengaduan']);
         Route::post('pengaduan/{id}/selesai', [PegawaiController::class, 'selesaikanPengaduan']);
+        Route::get('laporan', [PegawaiController::class, 'laporan']);
+        Route::post('laporan', [PegawaiController::class, 'generateLaporan']);
+        Route::get('laporan/{id}/download', [PegawaiController::class, 'downloadLaporan']);
     });
 
     // KEPALA KANTOR ROUTES

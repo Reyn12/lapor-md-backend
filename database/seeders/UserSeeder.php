@@ -16,6 +16,8 @@ class UserSeeder extends Seeder
         // Akun Warga
         User::create([
             'nama' => 'Budi Santoso',
+            'nik' => '1234567890123456',  // NIK 16 digit
+            'nip' => null,  // Warga ga punya NIP
             'email' => 'warga@lapor.com',
             'password' => Hash::make('password123'),
             'no_telepon' => '081234567890',
@@ -27,6 +29,8 @@ class UserSeeder extends Seeder
         // Akun Pegawai
         User::create([
             'nama' => 'Siti Aminah',
+            'nik' => '1234567890123457',  // NIK 16 digit
+            'nip' => 'PEG2024001',  // NIP pegawai
             'email' => 'pegawai@lapor.com', 
             'password' => Hash::make('password123'),
             'no_telepon' => '081234567891',
@@ -38,6 +42,8 @@ class UserSeeder extends Seeder
         // Akun Kepala Kantor
         User::create([
             'nama' => 'Drs. Ahmad Fauzi, M.Si',
+            'nik' => '1234567890123458',  // NIK 16 digit
+            'nip' => 'KEP2024001',  // NIP kepala kantor
             'email' => 'kepala@lapor.com',
             'password' => Hash::make('password123'),
             'no_telepon' => '081234567892', 

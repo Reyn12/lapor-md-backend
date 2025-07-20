@@ -83,7 +83,21 @@ class PengaduanSeeder extends Seeder
                 'lokasi' => 'Jl. Gatot Subroto depan warung Bu Sari',
                 'status' => 'menunggu',
                 'tanggal_pengaduan' => now()->subDay(),
-            ]
+            ],
+            [
+                'warga_id' => $warga->id,
+                'pegawai_id' => $pegawai->id,
+                'kepala_kantor_id' => $kepala->id,
+                'kategori_id' => $kebersihan->id,
+                'judul' => 'Perbaikan Taman Kelurahan',
+                'deskripsi' => 'Taman di kelurahan perlu diperbaiki. Fasilitas bermain anak rusak dan perlu penggantian. Sudah disetujui untuk segera diselesaikan.',
+                'lokasi' => 'Taman Kelurahan Sukamaju',
+                'status' => 'disetujui',
+                'tanggal_pengaduan' => now()->subDays(4),
+                'tanggal_proses' => now()->subDays(2),
+                'catatan_pegawai' => 'Proposal perbaikan sudah disetujui kepala kantor. Siap untuk eksekusi.',
+                'catatan_kepala_kantor' => 'Disetujui untuk segera dilaksanakan perbaikan.',
+            ],
         ];
 
         foreach ($pengaduans as $data) {

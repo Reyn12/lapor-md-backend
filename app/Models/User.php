@@ -18,6 +18,8 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'nama',  // Ganti dari 'name'
+        'nik',   // NIK untuk semua user
+        'nip',   // NIP khusus pegawai/kepala kantor
         'email',
         'password',
         'no_telepon',

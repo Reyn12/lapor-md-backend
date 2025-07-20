@@ -410,4 +410,309 @@ class PegawaiController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Detail pengaduan untuk pegawai
+     */
+    public function detailPengaduan(Request $request, $id): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Cari pengaduan dengan relasi sesuai kebutuhan UI
+            $pengaduan = Pengaduan::with([
+                'warga:id,nama', // Cuma nama pelapor
+                'kategori:id,nama_kategori' // Cuma nama kategori
+            ])->find($id);
+            
+            if (!$pengaduan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengaduan tidak ditemukan'
+                ], 404);
+            }
+            
+            // Cek apakah pegawai berhak lihat detail ini
+            $canView = false;
+            if ($pengaduan->status === 'menunggu') {
+                $canView = true; // Semua pegawai bisa lihat pengaduan yang belum di-assign
+            } elseif ($pengaduan->pegawai_id === $user->id) {
+                $canView = true; // Pegawai yang handle bisa lihat
+            }
+            
+            if (!$canView) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda tidak berhak melihat detail pengaduan ini'
+                ], 403);
+            }
+            
+            // Tentukan prioritas berdasarkan waktu
+            $isUrgent = $pengaduan->created_at->diffInHours(now()) < 24;
+            
+            // Format response sesuai UI
+            $response = [
+                'id' => $pengaduan->id,
+                'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
+                'judul' => $pengaduan->judul,
+                'deskripsi' => $pengaduan->deskripsi,
+                'lokasi' => $pengaduan->lokasi,
+                'foto_pengaduan' => $pengaduan->foto_pengaduan,
+                'status' => $pengaduan->status,
+                'is_urgent' => $isUrgent,
+                'pelapor_nama' => $pengaduan->warga ? $pengaduan->warga->nama : null,
+                'kategori_nama' => $pengaduan->kategori ? $pengaduan->kategori->nama_kategori : null,
+                'tanggal_pengaduan' => $pengaduan->tanggal_pengaduan ? $pengaduan->tanggal_pengaduan->format('Y-m-d') : $pengaduan->created_at->format('Y-m-d'),
+                
+                // Permissions untuk button actions
+                'can_accept' => $pengaduan->status === 'menunggu',
+                'can_update_progress' => $pengaduan->pegawai_id === $user->id && in_array($pengaduan->status, ['diproses', 'perlu_approval']),
+                'can_complete' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'disetujui'
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => $response
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil detail pengaduan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Halaman laporan untuk pegawai
+     */
+    public function laporan(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // 1. Riwayat laporan yang udah dibuat
+            $riwayatLaporan = \App\Models\Laporan::where('dibuat_oleh', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get()
+                ->map(function ($laporan) {
+                    return [
+                        'id' => $laporan->id,
+                        'jenis_laporan' => ucfirst($laporan->jenis_laporan),
+                        'periode' => $laporan->tanggal_mulai->format('Y-m-d') . ' - ' . $laporan->tanggal_selesai->format('Y-m-d'),
+                        'tanggal_dibuat' => $laporan->created_at->format('Y-m-d'),
+                        'total_pengaduan' => $laporan->total_pengaduan,
+                        'pengaduan_selesai' => $laporan->pengaduan_selesai,
+                        'pengaduan_proses' => $laporan->pengaduan_proses,
+                        'file_laporan' => $laporan->file_laporan,
+                        'status' => 'Selesai' // Kalau udah ke-save berarti selesai
+                    ];
+                });
+
+            // 2. Data untuk preview (statistik hari ini)
+            $today = now();
+            $previewData = [
+                'tanggal' => $today->format('Y-m-d'),
+                'pengaduan_masuk' => Pengaduan::whereDate('created_at', $today)->count(),
+                'sedang_diproses' => Pengaduan::where('pegawai_id', $user->id)
+                    ->whereIn('status', ['diproses', 'perlu_approval', 'disetujui'])
+                    ->count(),
+                'selesai' => Pengaduan::where('pegawai_id', $user->id)
+                    ->where('status', 'selesai')
+                    ->whereDate('tanggal_selesai', $today)
+                    ->count()
+            ];
+
+            // 3. Options untuk filter
+            $filterOptions = [
+                'periode' => [
+                    ['value' => 'harian', 'label' => 'Harian'],
+                    ['value' => 'mingguan', 'label' => 'Mingguan'], 
+                    ['value' => 'bulanan', 'label' => 'Bulanan']
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'riwayat_laporan' => $riwayatLaporan,
+                    'preview_data' => $previewData,
+                    'filter_options' => $filterOptions
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data laporan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate laporan baru
+     */
+    public function generateLaporan(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Validasi input
+            $request->validate([
+                'jenis_laporan' => 'required|in:harian,mingguan,bulanan',
+                'tanggal_mulai' => 'required|date',
+                'tanggal_akhir' => 'required|date|after_or_equal:tanggal_mulai'
+            ]);
+
+            $jenisLaporan = $request->jenis_laporan;
+            $tanggalMulai = Carbon::parse($request->tanggal_mulai);
+            $tanggalAkhir = Carbon::parse($request->tanggal_akhir);
+
+            // Hitung statistik berdasarkan periode
+            $totalPengaduan = Pengaduan::whereBetween('created_at', [$tanggalMulai, $tanggalAkhir])->count();
+            
+            $pengaduanSelesai = Pengaduan::where('pegawai_id', $user->id)
+                ->where('status', 'selesai')
+                ->whereBetween('tanggal_selesai', [$tanggalMulai, $tanggalAkhir])
+                ->count();
+            
+            $pengaduanProses = Pengaduan::where('pegawai_id', $user->id)
+                ->whereIn('status', ['diproses', 'perlu_approval', 'disetujui'])
+                ->whereBetween('tanggal_proses', [$tanggalMulai, $tanggalAkhir])
+                ->count();
+
+            // Simpan laporan ke database
+            $laporan = \App\Models\Laporan::create([
+                'dibuat_oleh' => $user->id,
+                'jenis_laporan' => $jenisLaporan,
+                'tanggal_mulai' => $tanggalMulai,
+                'tanggal_selesai' => $tanggalAkhir,
+                'total_pengaduan' => $totalPengaduan,
+                'pengaduan_selesai' => $pengaduanSelesai,
+                'pengaduan_proses' => $pengaduanProses,
+                'file_laporan' => null // Nanti bisa ditambahin kalau mau generate PDF
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Laporan berhasil digenerate',
+                'data' => [
+                    'laporan' => [
+                        'id' => $laporan->id,
+                        'jenis_laporan' => ucfirst($laporan->jenis_laporan),
+                        'periode' => $tanggalMulai->format('Y-m-d') . ' - ' . $tanggalAkhir->format('Y-m-d'),
+                        'total_pengaduan' => $totalPengaduan,
+                        'pengaduan_selesai' => $pengaduanSelesai,
+                        'pengaduan_proses' => $pengaduanProses,
+                        'tanggal_dibuat' => now()->format('Y-m-d')
+                    ]
+                ]
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate laporan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download PDF laporan
+     */
+    public function downloadLaporan(Request $request, $id): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Cari laporan
+            $laporan = \App\Models\Laporan::where('id', $id)
+                ->where('dibuat_oleh', $user->id)
+                ->first();
+            
+            if (!$laporan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Laporan tidak ditemukan'
+                ], 404);
+            }
+            
+            // Kalau file PDF udah ada, return link download
+            if ($laporan->file_laporan) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'download_url' => asset('storage/' . $laporan->file_laporan),
+                        'filename' => basename($laporan->file_laporan)
+                    ]
+                ], 200);
+            }
+            
+            // Kalau belum ada, generate PDF dulu
+            $filename = $this->generatePDFLaporan($laporan);
+            
+            // Update laporan dengan file PDF
+            $laporan->update(['file_laporan' => $filename]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'PDF berhasil digenerate',
+                'data' => [
+                    'download_url' => asset('storage/' . $filename),
+                    'filename' => basename($filename)
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal download laporan',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate PDF laporan (dummy untuk sekarang)
+     */
+    private function generatePDFLaporan($laporan): string
+    {
+        // TODO: Implement PDF generation using library like DomPDF
+        // Untuk sekarang return dummy filename
+        
+        $filename = 'laporan/' . $laporan->jenis_laporan . '_' . 
+                   $laporan->tanggal_mulai->format('Y-m-d') . '_' . 
+                   $laporan->tanggal_selesai->format('Y-m-d') . '_' . 
+                   time() . '.pdf';
+        
+        // Dummy: Create empty file for now
+        $path = storage_path('app/public/' . $filename);
+        
+        // Ensure directory exists
+        $dir = dirname($path);
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        
+        // Create dummy PDF content (nanti ganti dengan real PDF generation)
+        $dummyContent = "Laporan " . ucfirst($laporan->jenis_laporan) . "\n" .
+                       "Periode: " . $laporan->tanggal_mulai->format('Y-m-d') . " - " . $laporan->tanggal_selesai->format('Y-m-d') . "\n" .
+                       "Total Pengaduan: " . $laporan->total_pengaduan . "\n" .
+                       "Pengaduan Selesai: " . $laporan->pengaduan_selesai . "\n" .
+                       "Pengaduan Proses: " . $laporan->pengaduan_proses;
+        
+        file_put_contents($path, $dummyContent);
+        
+        return $filename;
+    }
 } 
