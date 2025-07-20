@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
 use App\Models\User; // Added missing import for User model
+use App\Services\ImageKitService;
+use Illuminate\Support\Facades\Log;
 
 class PegawaiController extends Controller
 {
@@ -765,7 +767,7 @@ class PegawaiController extends Controller
                 'no_telepon' => $profile->no_telepon,
                 'alamat' => $profile->alamat,
                 'role' => $profile->role,
-                'foto_profil' => $profile->foto_profil ? asset('storage/' . $profile->foto_profil) : null,
+                'foto_profil' => $profile->foto_profil, // URL langsung dari ImageKit
                 
                 // Statistik performa
                 'statistics' => $statistics,
@@ -809,6 +811,17 @@ class PegawaiController extends Controller
         try {
             $user = $request->user(); // User dari middleware (pegawai)
             
+            // Debug: Log semua request data
+            Log::info('Update Profile Request:', [
+                'method' => $request->method(),
+                'url' => $request->url(),
+                'headers' => $request->headers->all(),
+                'all_data' => $request->all(),
+                'input_data' => $request->input(),
+                'has_file' => $request->hasFile('foto_profil'),
+                'content_type' => $request->header('Content-Type')
+            ]);
+            
             // Validasi input
             $request->validate([
                 'nama' => 'sometimes|string|max:100',
@@ -821,31 +834,59 @@ class PegawaiController extends Controller
                 'foto_profil' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048'
             ]);
             
-            // Data yang akan diupdate
-            $updateData = $request->only([
-                'nama', 'nik', 'nip', 'email', 'no_telepon', 'alamat'
-            ]);
+            // Data yang akan diupdate (cuma yang ada value)
+            $updateData = [];
+            
+            if ($request->filled('nama')) {
+                $updateData['nama'] = $request->nama;
+            }
+            
+            if ($request->filled('nik')) {
+                $updateData['nik'] = $request->nik;
+            }
+            
+            if ($request->filled('nip')) {
+                $updateData['nip'] = $request->nip;
+            }
+            
+            if ($request->filled('email')) {
+                $updateData['email'] = $request->email;
+            }
+            
+            if ($request->filled('no_telepon')) {
+                $updateData['no_telepon'] = $request->no_telepon;
+            }
+            
+            if ($request->filled('alamat')) {
+                $updateData['alamat'] = $request->alamat;
+            }
             
             // Handle password update
             if ($request->filled('password')) {
                 $updateData['password'] = bcrypt($request->password);
             }
             
-            // Handle foto profil upload
+            // Handle foto profil upload dengan ImageKit
             if ($request->hasFile('foto_profil')) {
-                $file = $request->file('foto_profil');
-                $filename = 'profiles/' . time() . '_' . $user->id . '.' . $file->getClientOriginalExtension();
+                $imageKitService = new ImageKitService();
+                $uploadedUrl = $imageKitService->uploadImage($request->file('foto_profil'), 'profiles');
                 
-                // Simpan file ke storage
-                $path = $file->storeAs('public/' . dirname($filename), basename($filename));
-                
-                // Hapus foto lama jika ada
-                if ($user->foto_profil && file_exists(storage_path('app/public/' . $user->foto_profil))) {
-                    unlink(storage_path('app/public/' . $user->foto_profil));
+                if ($uploadedUrl) {
+                    $updateData['foto_profil'] = $uploadedUrl;
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal upload foto profil'
+                    ], 500);
                 }
-                
-                $updateData['foto_profil'] = $filename;
             }
+            
+            // Debug: Log data yang akan diupdate
+            Log::info('Update Profile Data:', [
+                'user_id' => $user->id,
+                'request_data' => $request->all(),
+                'update_data' => $updateData
+            ]);
             
             // Update user
             $user->update($updateData);
@@ -865,7 +906,7 @@ class PegawaiController extends Controller
                     'no_telepon' => $updatedUser->no_telepon,
                     'alamat' => $updatedUser->alamat,
                     'role' => $updatedUser->role,
-                    'foto_profil' => $updatedUser->foto_profil ? asset('storage/' . $updatedUser->foto_profil) : null,
+                    'foto_profil' => $updatedUser->foto_profil, // URL langsung dari ImageKit
                     'updated_at' => $updatedUser->updated_at->toISOString()
                 ]
             ], 200);
