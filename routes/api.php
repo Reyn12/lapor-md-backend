@@ -56,6 +56,8 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
         Route::get('laporan', [PegawaiController::class, 'laporan']);
         Route::post('laporan', [PegawaiController::class, 'generateLaporan']);
         Route::get('laporan/{id}/download', [PegawaiController::class, 'downloadLaporan']);
+        Route::get('profile', [PegawaiController::class, 'profile']);
+        Route::put('profile', [PegawaiController::class, 'updateProfile']);
     });
 
     // KEPALA KANTOR ROUTES

@@ -7,6 +7,7 @@ use App\Models\Notifikasi;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use App\Models\User; // Added missing import for User model
 
 class PegawaiController extends Controller
 {
@@ -126,6 +127,10 @@ class PegawaiController extends Controller
                     $pengaduanQuery->where('pegawai_id', $user->id)
                         ->whereIn('status', ['diproses', 'perlu_approval', 'disetujui']);
                     break;
+                case 'selesai':
+                    $pengaduanQuery->where('pegawai_id', $user->id)
+                        ->where('status', 'selesai');
+                    break;
                 case 'semua':
                     $pengaduanQuery->where(function($query) use ($user) {
                         $query->where('status', 'menunggu')
@@ -228,6 +233,9 @@ class PegawaiController extends Controller
                 'masuk' => Pengaduan::where('status', 'menunggu')->count(),
                 'diproses' => Pengaduan::where('pegawai_id', $user->id)
                     ->whereIn('status', ['diproses', 'perlu_approval', 'disetujui'])
+                    ->count(),
+                'selesai' => Pengaduan::where('pegawai_id', $user->id)
+                    ->where('status', 'selesai')
                     ->count()
             ];
 
@@ -714,5 +722,166 @@ class PegawaiController extends Controller
         file_put_contents($path, $dummyContent);
         
         return $filename;
+    }
+
+    /**
+     * Ambil data profile pegawai
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Ambil data lengkap user dengan relasi yang dibutuhkan
+            $profile = User::with([
+                'pengaduanSebagaiPegawai' => function($query) {
+                    $query->select('id', 'pegawai_id', 'status', 'created_at')
+                          ->orderBy('created_at', 'desc')
+                          ->limit(5); // 5 pengaduan terakhir yang ditangani
+                }
+            ])->find($user->id);
+            
+            // Hitung statistik pegawai
+            $statistics = [
+                'total_pengaduan_ditangani' => Pengaduan::where('pegawai_id', $user->id)->count(),
+                'pengaduan_selesai' => Pengaduan::where('pegawai_id', $user->id)
+                    ->where('status', 'selesai')
+                    ->count(),
+                'pengaduan_proses' => Pengaduan::where('pegawai_id', $user->id)
+                    ->whereIn('status', ['diproses', 'perlu_approval', 'disetujui'])
+                    ->count(),
+                'pengaduan_hari_ini' => Pengaduan::where('pegawai_id', $user->id)
+                    ->whereDate('created_at', today())
+                    ->count()
+            ];
+            
+            // Format response
+            $response = [
+                'id' => $profile->id,
+                'nama' => $profile->nama,
+                'nik' => $profile->nik,
+                'nip' => $profile->nip,
+                'email' => $profile->email,
+                'no_telepon' => $profile->no_telepon,
+                'alamat' => $profile->alamat,
+                'role' => $profile->role,
+                'foto_profil' => $profile->foto_profil ? asset('storage/' . $profile->foto_profil) : null,
+                
+                // Statistik performa
+                'statistics' => $statistics,
+                
+                // Pengaduan terakhir yang ditangani
+                'pengaduan_terakhir' => $profile->pengaduanSebagaiPegawai->map(function ($pengaduan) {
+                    return [
+                        'id' => $pengaduan->id,
+                        'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
+                        'judul' => $pengaduan->judul,
+                        'status' => $pengaduan->status,
+                        'tanggal' => $pengaduan->created_at->format('Y-m-d'),
+                        'waktu_relatif' => $pengaduan->created_at->diffForHumans()
+                    ];
+                }),
+                
+                // Metadata
+                'tanggal_bergabung' => $profile->created_at->format('Y-m-d'),
+                'waktu_bergabung' => $profile->created_at->diffForHumans()
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => $response
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update data profile pegawai
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Validasi input
+            $request->validate([
+                'nama' => 'sometimes|string|max:100',
+                'nik' => 'sometimes|string|size:16|unique:users,nik,' . $user->id,
+                'nip' => 'sometimes|nullable|string|max:20|unique:users,nip,' . $user->id,
+                'email' => 'sometimes|email|unique:users,email,' . $user->id,
+                'no_telepon' => 'sometimes|string|max:20',
+                'alamat' => 'sometimes|string|max:500',
+                'password' => 'sometimes|string|min:6|confirmed',
+                'foto_profil' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048'
+            ]);
+            
+            // Data yang akan diupdate
+            $updateData = $request->only([
+                'nama', 'nik', 'nip', 'email', 'no_telepon', 'alamat'
+            ]);
+            
+            // Handle password update
+            if ($request->filled('password')) {
+                $updateData['password'] = bcrypt($request->password);
+            }
+            
+            // Handle foto profil upload
+            if ($request->hasFile('foto_profil')) {
+                $file = $request->file('foto_profil');
+                $filename = 'profiles/' . time() . '_' . $user->id . '.' . $file->getClientOriginalExtension();
+                
+                // Simpan file ke storage
+                $path = $file->storeAs('public/' . dirname($filename), basename($filename));
+                
+                // Hapus foto lama jika ada
+                if ($user->foto_profil && file_exists(storage_path('app/public/' . $user->foto_profil))) {
+                    unlink(storage_path('app/public/' . $user->foto_profil));
+                }
+                
+                $updateData['foto_profil'] = $filename;
+            }
+            
+            // Update user
+            $user->update($updateData);
+            
+            // Ambil data terbaru
+            $updatedUser = User::find($user->id);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile berhasil diupdate',
+                'data' => [
+                    'id' => $updatedUser->id,
+                    'nama' => $updatedUser->nama,
+                    'nik' => $updatedUser->nik,
+                    'nip' => $updatedUser->nip,
+                    'email' => $updatedUser->email,
+                    'no_telepon' => $updatedUser->no_telepon,
+                    'alamat' => $updatedUser->alamat,
+                    'role' => $updatedUser->role,
+                    'foto_profil' => $updatedUser->foto_profil ? asset('storage/' . $updatedUser->foto_profil) : null,
+                    'updated_at' => $updatedUser->updated_at->toISOString()
+                ]
+            ], 200);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal update profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 } 
