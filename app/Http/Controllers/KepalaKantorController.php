@@ -1077,4 +1077,153 @@ class KepalaKantorController extends Controller
         
         return $filepath;
     }
+
+    /**
+     * Ambil data profile kepala kantor
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            // Ambil statistik untuk profile
+            $statistik = [
+                'total_pengaduan_disetujui' => Pengaduan::where('kepala_kantor_id', $user->id)
+                    ->where('status', 'disetujui')
+                    ->count(),
+                'total_pengaduan_ditolak' => Pengaduan::where('kepala_kantor_id', $user->id)
+                    ->where('status', 'ditolak')
+                    ->count(),
+                'total_laporan_dibuat' => Laporan::where('dibuat_oleh', $user->id)->count(),
+                'rata_rata_waktu_approval' => $this->hitungRataRataWaktuApproval($user->id)
+            ];
+
+            // Ambil riwayat approval terbaru
+            $riwayatApproval = Pengaduan::where('kepala_kantor_id', $user->id)
+                ->whereIn('status', ['disetujui', 'ditolak'])
+                ->with(['kategori', 'warga', 'pegawai'])
+                ->orderBy('updated_at', 'desc')
+                ->limit(5)
+                ->get()
+                ->map(function ($pengaduan) {
+                    return [
+                        'id' => $pengaduan->id,
+                        'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
+                        'judul' => $pengaduan->judul,
+                        'status' => $pengaduan->status,
+                        'kategori' => $pengaduan->kategori ? $pengaduan->kategori->nama_kategori : null,
+                        'warga_nama' => $pengaduan->warga ? $pengaduan->warga->nama : null,
+                        'pegawai_nama' => $pengaduan->pegawai ? $pengaduan->pegawai->nama : null,
+                        'catatan_kepala_kantor' => $pengaduan->catatan_kepala_kantor,
+                        'updated_at' => $pengaduan->updated_at->toISOString()
+                    ];
+                });
+
+            $data = [
+                'id' => $user->id,
+                'nama' => $user->nama,
+                'nik' => $user->nik,
+                'nip' => $user->nip,
+                'email' => $user->email,
+                'no_telepon' => $user->no_telepon,
+                'alamat' => $user->alamat,
+                'role' => $user->role,
+                'foto_profil' => $user->foto_profil,
+                'jabatan' => 'Kepala Dinas Pelayanan Masyarakat',
+                'created_at' => $user->created_at->toISOString(),
+                'updated_at' => $user->updated_at->toISOString(),
+                'statistik' => $statistik,
+                'riwayat_approval' => $riwayatApproval
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update profile kepala kantor
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            // Validasi input
+            $request->validate([
+                'nama' => 'sometimes|string|max:100',
+                'email' => 'sometimes|email|max:100|unique:users,email,' . $user->id,
+                'no_telepon' => 'sometimes|string|max:20',
+                'alamat' => 'sometimes|string',
+                'password' => 'sometimes|string|min:6'
+            ]);
+
+            // Update data user
+            $updateData = $request->only(['nama', 'email', 'no_telepon', 'alamat']);
+            
+            // Update password jika ada
+            if ($request->filled('password')) {
+                $updateData['password'] = bcrypt($request->password);
+            }
+
+            $user->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile berhasil diupdate',
+                'data' => [
+                    'id' => $user->id,
+                    'nama' => $user->nama,
+                    'email' => $user->email,
+                    'no_telepon' => $user->no_telepon,
+                    'alamat' => $user->alamat,
+                    'foto_profil' => $user->foto_profil,
+                    'updated_at' => $user->updated_at->toISOString()
+                ]
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal update profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Hitung rata-rata waktu approval
+     */
+    private function hitungRataRataWaktuApproval($kepalaKantorId): float
+    {
+        $pengaduanApproved = Pengaduan::where('kepala_kantor_id', $kepalaKantorId)
+            ->whereIn('status', ['disetujui', 'ditolak'])
+            ->whereNotNull('catatan_kepala_kantor')
+            ->get();
+
+        if ($pengaduanApproved->isEmpty()) return 0;
+
+        $totalHari = 0;
+        foreach ($pengaduanApproved as $pengaduan) {
+            // Hitung waktu dari pengaduan dibuat sampai di-approve
+            $totalHari += $pengaduan->created_at->diffInDays($pengaduan->updated_at);
+        }
+
+        return round($totalHari / $pengaduanApproved->count(), 1);
+    }
 } 

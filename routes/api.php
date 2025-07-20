@@ -72,6 +72,8 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
         Route::get('pegawai', [KepalaKantorController::class, 'kelolaPegawai']);
         Route::get('laporan', [KepalaKantorController::class, 'laporan']);
         Route::get('laporan/export-pdf', [KepalaKantorController::class, 'exportLaporanPDF']);
+        Route::get('profile', [KepalaKantorController::class, 'profile']);
+        Route::put('profile', [KepalaKantorController::class, 'updateProfile']);
     });
 
     // SHARED ROUTES (Accessible by multiple roles)
