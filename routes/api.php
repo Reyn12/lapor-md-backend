@@ -5,6 +5,7 @@ use App\Http\Controllers\WargaController;
 use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\PengaduanController;
 use App\Http\Controllers\KategoriController;
+use App\Http\Controllers\KepalaKantorController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -61,10 +62,16 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
     });
 
     // KEPALA KANTOR ROUTES
-    Route::prefix('kepala')->middleware(['role:kepala_kantor'])->group(function () {
-        // Dashboard kepala kantor, kelola pegawai, laporan, dll
-        // Route::get('dashboard', [KepalaKantorController::class, 'dashboard']);
-        // Route::post('pegawai', [KepalaKantorController::class, 'buatPegawai']);
+    Route::prefix('kepala-kantor')->middleware(['role:kepala_kantor'])->group(function () {
+        Route::get('home', [KepalaKantorController::class, 'home']);
+        Route::get('monitoring', [KepalaKantorController::class, 'monitoring']);
+        Route::get('detail-pengaduan/{id}', [KepalaKantorController::class, 'detailPengaduan']);
+        Route::get('approval', [KepalaKantorController::class, 'approval']);
+        Route::post('pengaduan/{id}/approve', [KepalaKantorController::class, 'approvePengaduan']);
+        Route::post('pengaduan/{id}/reject', [KepalaKantorController::class, 'rejectPengaduan']);
+        Route::get('pegawai', [KepalaKantorController::class, 'kelolaPegawai']);
+        Route::get('laporan', [KepalaKantorController::class, 'laporan']);
+        Route::get('laporan/export-pdf', [KepalaKantorController::class, 'exportLaporanPDF']);
     });
 
     // SHARED ROUTES (Accessible by multiple roles)
