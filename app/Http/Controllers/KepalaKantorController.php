@@ -307,8 +307,6 @@ class KepalaKantorController extends Controller
                         'id' => $pengaduan->id,
                         'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
                         'judul' => $pengaduan->judul,
-                        'status' => $pengaduan->status,
-                        'prioritas' => $this->tentukanPrioritas($pengaduan->created_at),
                         'kategori' => $pengaduan->kategori ? $pengaduan->kategori->nama_kategori : null,
                         'warga_nama' => $pengaduan->warga ? $pengaduan->warga->nama : null,
                         'pegawai_nama' => $pengaduan->pegawai ? $pengaduan->pegawai->nama : null,
@@ -403,7 +401,7 @@ class KepalaKantorController extends Controller
             
             $catatan = $request->input('catatan', '');
             
-            $pengaduan->status = 'ditolak';
+            $pengaduan->status = 'diproses'; // Ubah dari 'ditolak' menjadi 'diproses'
             $pengaduan->catatan_kepala_kantor = $catatan;
             $pengaduan->save();
             
@@ -411,8 +409,8 @@ class KepalaKantorController extends Controller
             Notifikasi::create([
                 'pengguna_id' => $pengaduan->pegawai_id,
                 'pengaduan_id' => $pengaduan->id,
-                'judul' => 'Pengaduan Ditolak',
-                'pesan' => "Pengaduan {$pengaduan->nomor_pengaduan} ditolak oleh kepala kantor."
+                'judul' => 'Pengaduan Dikembalikan',
+                'pesan' => "Pengaduan {$pengaduan->nomor_pengaduan} dikembalikan oleh kepala kantor untuk direvisi. Catatan: {$catatan}"
             ]);
             
             return response()->json([

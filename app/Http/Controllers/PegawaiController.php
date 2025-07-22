@@ -222,6 +222,7 @@ class PegawaiController extends Controller
                         'can_accept' => $pengaduan->status === 'menunggu', // Bisa di-terima kalau masih menunggu
                         'can_update_progress' => $pengaduan->pegawai_id === $user->id && in_array($pengaduan->status, ['diproses', 'perlu_approval']),
                         'can_complete' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'disetujui',
+                        'can_request_approval' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'diproses',
                         'tanggal_pengaduan' => $pengaduan->tanggal_pengaduan ? $pengaduan->tanggal_pengaduan->toISOString() : $pengaduan->created_at->toISOString(),
                         'tanggal_proses' => $pengaduan->tanggal_proses ? $pengaduan->tanggal_proses->toISOString() : null,
                         'created_at' => $pengaduan->created_at->toISOString(),
@@ -921,6 +922,91 @@ class PegawaiController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal update profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Ajukan pengaduan untuk approval Kepala Kantor
+     */
+    public function ajukanApproval(Request $request, $id): JsonResponse
+    {
+        try {
+            $user = $request->user(); // User dari middleware (pegawai)
+            
+            // Validasi input
+            $request->validate([
+                'catatan_approval' => 'nullable|string|max:1000' // Catatan opsional dari pegawai
+            ]);
+
+            // Cari pengaduan
+            $pengaduan = Pengaduan::find($id);
+            
+            if (!$pengaduan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengaduan tidak ditemukan'
+                ], 404);
+            }
+            
+            // Validasi ownership
+            if ($pengaduan->pegawai_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda tidak berhak mengajukan approval untuk pengaduan ini'
+                ], 403);
+            }
+            
+            // Validasi status pengaduan
+            // Hanya pengaduan yang sedang diproses yang bisa diajukan untuk approval
+            if ($pengaduan->status !== 'diproses') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengaduan hanya bisa diajukan untuk approval jika statusnya "diproses".'
+                ], 400);
+            }
+            
+            // Update pengaduan
+            $pengaduan->update([
+                'status' => 'perlu_approval',
+                'catatan_pegawai' => ($pengaduan->catatan_pegawai ? $pengaduan->catatan_pegawai . "\n" : '') . "[Diajukan Approval]: " . ($request->catatan_approval ?? 'Tidak ada catatan.')
+            ]);
+            
+            // Buat notifikasi untuk Kepala Kantor
+            $kepalaKantorUsers = User::where('role', 'kepala_kantor')->get();
+            foreach ($kepalaKantorUsers as $kepalaKantor) {
+                Notifikasi::create([
+                    'pengguna_id' => $kepalaKantor->id,
+                    'pengaduan_id' => $pengaduan->id,
+                    'judul' => 'Pengaduan Membutuhkan Approval',
+                    'pesan' => "Pengaduan {$pengaduan->nomor_pengaduan} dari {$pengaduan->warga->nama} memerlukan persetujuan Anda.",
+                    'dibaca' => false
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaduan berhasil diajukan untuk approval',
+                'data' => [
+                    'pengaduan' => [
+                        'id' => $pengaduan->id,
+                        'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
+                        'status' => $pengaduan->status
+                    ]
+                ]
+            ], 200);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengajukan pengaduan untuk approval',
                 'error' => $e->getMessage()
             ], 500);
         }
