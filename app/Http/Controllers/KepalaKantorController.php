@@ -312,7 +312,6 @@ class KepalaKantorController extends Controller
                         'pegawai_nama' => $pengaduan->pegawai ? $pengaduan->pegawai->nama : null,
                         'lokasi' => $pengaduan->lokasi,
                         'tanggal_pengaduan' => $pengaduan->tanggal_pengaduan ? $pengaduan->tanggal_pengaduan->toISOString() : null,
-                        'estimasi_biaya' => $this->hitungEstimasiBiaya($pengaduan),
                         'rekomendasi' => $pengaduan->catatan_pegawai,
                         'deskripsi_lengkap' => $pengaduan->deskripsi,
                         'created_at' => $pengaduan->created_at->toISOString()
@@ -696,27 +695,6 @@ class KepalaKantorController extends Controller
             'persentase' => $progress,
             'status_text' => $statusText
         ];
-    }
-
-    /**
-     * Hitung estimasi biaya (simulasi berdasarkan kategori)
-     */
-    private function hitungEstimasiBiaya($pengaduan): string
-    {
-        // Simulasi estimasi biaya berdasarkan kategori
-        $estimasiBiaya = [
-            'Infrastruktur' => 50000000, // 50 juta
-            'Pelayanan Publik' => 10000000, // 10 juta
-            'Fasilitas Umum' => 25000000, // 25 juta
-            'Keamanan' => 15000000, // 15 juta
-            'Kesehatan' => 30000000, // 30 juta
-            'Pendidikan' => 20000000, // 20 juta
-        ];
-        
-        $kategoriNama = $pengaduan->kategori ? $pengaduan->kategori->nama_kategori : 'Infrastruktur';
-        $biaya = $estimasiBiaya[$kategoriNama] ?? 20000000; // Default 20 juta
-        
-        return 'Rp ' . number_format($biaya, 0, ',', '.');
     }
 
     /**

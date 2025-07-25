@@ -478,7 +478,8 @@ class PegawaiController extends Controller
                 // Permissions untuk button actions
                 'can_accept' => $pengaduan->status === 'menunggu',
                 'can_update_progress' => $pengaduan->pegawai_id === $user->id && in_array($pengaduan->status, ['diproses', 'perlu_approval']),
-                'can_complete' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'disetujui'
+                'can_complete' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'disetujui',
+                'can_request_approval' => $pengaduan->pegawai_id === $user->id && $pengaduan->status === 'diproses'
             ];
             
             return response()->json([

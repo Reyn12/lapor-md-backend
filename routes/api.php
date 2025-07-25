@@ -54,6 +54,7 @@ Route::prefix('warga')->middleware(['role:warga'])->group(function () {
         Route::get('pengaduan/{id}', [PegawaiController::class, 'detailPengaduan']);
         Route::post('pengaduan/{id}/terima', [PegawaiController::class, 'terimaPengaduan']);
         Route::post('pengaduan/{id}/selesai', [PegawaiController::class, 'selesaikanPengaduan']);
+        Route::post('pengaduan/{id}/ajukan-approval', [PegawaiController::class, 'ajukanApproval']);
         Route::get('laporan', [PegawaiController::class, 'laporan']);
         Route::post('laporan', [PegawaiController::class, 'generateLaporan']);
         Route::get('laporan/{id}/download', [PegawaiController::class, 'downloadLaporan']);
