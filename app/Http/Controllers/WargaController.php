@@ -427,6 +427,7 @@ class WargaController extends Controller
                 'no_telepon' => 'sometimes|string|max:20',
                 'alamat' => 'sometimes|string',
                 'foto_profil' => 'sometimes|string|max:255', // URL foto
+                'nik' => 'sometimes|string|size:16|unique:users,nik,' . $user->id, // validasi nik
             ]);
 
             // Data yang akan diupdate
@@ -456,6 +457,10 @@ class WargaController extends Controller
                 $updateData['foto_profil'] = $request->foto_profil;
             }
 
+            if ($request->has('nik')) {
+                $updateData['nik'] = $request->nik;
+            }
+
             // Update user
             $user->update($updateData);
 
@@ -472,7 +477,7 @@ class WargaController extends Controller
                         'email' => $user->email,
                         'email_verified_at' => $user->email_verified_at ? $user->email_verified_at->toISOString() : null,
                         'is_verified' => $user->email_verified_at ? true : false,
-                        'nik' => null, // Field NIK belum ada di database
+                        'nik' => $user->nik,
                         'no_telepon' => $user->no_telepon,
                         'alamat' => $user->alamat,
                         'foto_profil' => $user->foto_profil,
